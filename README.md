@@ -82,7 +82,11 @@ runs/example_v1/
 
 ## NuevaMente — Audit Run #001
 
-AI Quality Lab v0.1.2 includes adapters for the frozen NuevaMente ground truth and the original retrieval JSON contract.
+NuevaMente is used as the first real validation case for AI Quality Lab.
+
+For privacy and reproducibility, client/project datasets and generated audit runs are not stored in this repository. They are kept outside the Git repository under the local `client-data/` workspace.
+
+AI Quality Lab v0.1.2 includes adapters capable of converting the frozen NuevaMente ground truth and retrieval contract into the canonical AIQL format.
 
 ### 1. Adapt frozen ground truth
 
