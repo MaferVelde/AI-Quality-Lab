@@ -1,0 +1,36 @@
+# Virtual environments
+.venv/
+venv/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Build
+build/
+dist/
+
+# IDE
+.vscode/
+.idea/
+
+# Environment / secrets
+.env
+.env.*
+
+# Private data
+client-data/
+data/clients/
+
+# Generated audits
+runs/
+
+# OS
+Thumbs.db
+.DS_Store

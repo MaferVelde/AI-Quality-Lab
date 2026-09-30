@@ -1,0 +1,4 @@
+query_id,question,relevant_chunk_ids,category
+q01,¿Qué es recuperación aumentada por generación?,chunk_001|chunk_002,ai
+q02,¿Qué documento explica el despliegue?,chunk_010,cloud
+q03,¿Dónde se define la política de acceso?,chunk_020|chunk_021,backend
