@@ -66,6 +66,7 @@ _OUTPUT_COLUMNS = [
     "distinct_documents_at_k",
     "retrieved_documents",
     "technical_signal",
+    "technical_signal_source",
     "inferential_signal",
     "evidence",
     "recommended_action",
@@ -161,25 +162,39 @@ def _classify_candidate(
     )
     distinct_documents = len(set(documents))
 
-    evidence_text = " ".join(
+    question_technical_signal = bool(_CODELIKE_RE.search(str(question)))
+    reference_text = " ".join(
         [
-            str(question),
             str(metadata.get("expected_answer", "")),
             str(metadata.get("evidence_keywords", "")),
         ]
     )
-    technical_signal = bool(_CODELIKE_RE.search(evidence_text))
+    reference_technical_signal = bool(_CODELIKE_RE.search(reference_text))
+    technical_signal = question_technical_signal or reference_technical_signal
     inferential_signal = bool(_INFERENTIAL_RE.search(str(question)))
 
     if inferential_signal:
         return "inferential_query", "medium", technical_signal, True
 
-    if technical_signal and expected_hits > 0:
+    intradocument_threshold = max(3, ceil(k * 0.6))
+    strong_intradocument_threshold = max(intradocument_threshold, ceil(k * 0.8))
+
+    # A technical token present only in reference metadata is not sufficient by
+    # itself to explain a miss. Require either a technical signal in the query
+    # or strong concentration of retrieved chunks in the expected document.
+    if technical_signal and (
+        question_technical_signal or expected_hits >= strong_intradocument_threshold
+    ):
         return "technical_token_miss", "medium", True, False
 
-    intradocument_threshold = max(3, ceil(k * 0.6))
     if expected_document_id and expected_hits >= intradocument_threshold:
-        return "intradocument_competition", "high", technical_signal, False
+        confidence = (
+            "high"
+            if expected_hits >= strong_intradocument_threshold
+            or distinct_documents <= 2
+            else "medium"
+        )
+        return "intradocument_competition", confidence, technical_signal, False
 
     if expected_document_id and expected_hits <= 1 and distinct_documents >= 3:
         return "cross_document_ambiguity", "high", technical_signal, False
@@ -239,6 +254,23 @@ def analyze_root_causes(
             k=k,
         )
 
+        question_technical_signal = bool(_CODELIKE_RE.search(str(item["question"])))
+        reference_text = " ".join(
+            [
+                str(gt_metadata.get("expected_answer", "")),
+                str(gt_metadata.get("evidence_keywords", "")),
+            ]
+        )
+        reference_technical_signal = bool(_CODELIKE_RE.search(reference_text))
+        if question_technical_signal and reference_technical_signal:
+            technical_signal_source = "question|reference"
+        elif question_technical_signal:
+            technical_signal_source = "question"
+        elif reference_technical_signal:
+            technical_signal_source = "reference"
+        else:
+            technical_signal_source = ""
+
         evidence_parts = [
             f"deterministic_issue={item['primary_issue']}",
             f"expected_document={expected_document or 'unknown'}",
@@ -246,7 +278,9 @@ def analyze_root_causes(
             f"distinct_documents={distinct_documents}",
         ]
         if technical_signal:
-            evidence_parts.append("technical_signal=true")
+            evidence_parts.append(
+                f"technical_signal=true:{technical_signal_source or 'unknown'}"
+            )
         if inferential_signal:
             evidence_parts.append("inferential_signal=true")
 
@@ -263,6 +297,7 @@ def analyze_root_causes(
                 "distinct_documents_at_k": distinct_documents,
                 "retrieved_documents": "|".join(documents),
                 "technical_signal": technical_signal,
+                "technical_signal_source": technical_signal_source,
                 "inferential_signal": inferential_signal,
                 "evidence": "; ".join(evidence_parts),
                 "recommended_action": _CAUSE_RECOMMENDATIONS[cause],
