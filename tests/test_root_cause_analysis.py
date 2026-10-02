@@ -51,7 +51,7 @@ def test_root_cause_candidates(tmp_path: Path):
                 "category": "E",
                 "source_document_id": "DOC-E",
                 "expected_answer": "Una instancia.",
-                "evidence_keywords": "instancia",
+                "evidence_keywords": "app = FastAPI(); instancia",
             },
         ]
     )
@@ -93,5 +93,48 @@ def test_root_cause_candidates(tmp_path: Path):
     assert causes["Q3"] == "intradocument_competition"
     assert causes["Q4"] == "inferential_query"
     assert causes["Q5"] == "semantic_mismatch"
+
+    indexed = analysis.set_index("query_id")
+    assert indexed.loc["Q2", "technical_signal_source"] == "reference"
+    assert indexed.loc["Q5", "technical_signal_source"] == "reference"
+
     assert summary["hard_failures_input"] == 5
     assert summary["diagnosed_cases"] == 5
+
+
+def test_intradocument_competition_confidence_is_medium_when_document_only_partly_dominates(
+    tmp_path: Path,
+):
+    ground_truth = pd.DataFrame(
+        [
+            {
+                "query_id": "Q1",
+                "question": "¿Qué temas cubre este módulo?",
+                "relevant_chunk_ids": "DOC-A_CH_010",
+                "category": "A",
+                "source_document_id": "DOC-A",
+                "expected_answer": "Tema específico.",
+                "evidence_keywords": "tema específico",
+            }
+        ]
+    )
+    retrieval = pd.DataFrame(
+        [
+            {"query_id": "Q1", "rank": 1, "chunk_id": "DOC-A_CH_001", "document_id": "DOC-A"},
+            {"query_id": "Q1", "rank": 2, "chunk_id": "DOC-A_CH_002", "document_id": "DOC-A"},
+            {"query_id": "Q1", "rank": 3, "chunk_id": "DOC-A_CH_003", "document_id": "DOC-A"},
+            {"query_id": "Q1", "rank": 4, "chunk_id": "DOC-B_CH_001", "document_id": "DOC-B"},
+            {"query_id": "Q1", "rank": 5, "chunk_id": "DOC-C_CH_001", "document_id": "DOC-C"},
+        ]
+    )
+
+    gt_path = tmp_path / "ground_truth_medium.csv"
+    retrieval_path = tmp_path / "retrieval_medium.csv"
+    ground_truth.to_csv(gt_path, index=False)
+    retrieval.to_csv(retrieval_path, index=False)
+
+    analysis, _ = analyze_root_causes(gt_path, retrieval_path, k=5)
+    row = analysis.iloc[0]
+
+    assert row["root_cause_candidate"] == "intradocument_competition"
+    assert row["confidence"] == "medium"
