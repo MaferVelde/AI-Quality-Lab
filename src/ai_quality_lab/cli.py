@@ -6,14 +6,16 @@ from pathlib import Path
 import typer
 
 from ai_quality_lab import __version__
+from ai_quality_lab.analysis.failures import analyze_failures
 from ai_quality_lab.comparison import compare_summaries
 from ai_quality_lab.adapters.nuevamente import adapt_ground_truth as adapt_nuevamente_ground_truth
 from ai_quality_lab.adapters.nuevamente_retrieval import adapt_retrieval_json as adapt_nuevamente_retrieval_json
 from ai_quality_lab.evaluation.retrieval import evaluate_retrieval
+from ai_quality_lab.reporting.failure_report import build_failure_report
 from ai_quality_lab.reporting.report import build_markdown_report
 from ai_quality_lab.versioning.manifest import build_manifest
 
-app = typer.Typer(no_args_is_help=True, help="AI Quality Lab v0.1")
+app = typer.Typer(no_args_is_help=True, help=f"AI Quality Lab v{__version__}")
 
 
 def _parse_ks(raw: str) -> tuple[int, ...]:
@@ -74,6 +76,28 @@ def adapt_nuevamente_retrieval(
         f"Retrieval adaptation complete: {output} "
         f"({summary['queries']} queries, {summary['rows']} rows, "
         f"top_k={summary['top_k']}, score_type={summary['score_types']})"
+    )
+
+
+@app.command("analyze-failures")
+def analyze_failure_patterns(
+    ground_truth: Path = typer.Option(..., exists=True, readable=True),
+    retrieval: Path = typer.Option(..., exists=True, readable=True),
+    output: Path = typer.Option(...),
+    k: int = typer.Option(5, min=1, help="Top-K cutoff to diagnose"),
+) -> None:
+    output.mkdir(parents=True, exist_ok=True)
+    analysis, summary = analyze_failures(ground_truth, retrieval, k=k)
+    analysis.to_csv(output / "failure_analysis.csv", index=False)
+    (output / "failure_summary.json").write_text(
+        json.dumps(summary, indent=2, ensure_ascii=False), encoding="utf-8"
+    )
+    (output / "failure_report.md").write_text(
+        build_failure_report(summary), encoding="utf-8"
+    )
+    typer.echo(
+        f"Failure analysis complete: {output} "
+        f"({summary['hard_failures']} hard failures, {summary['warnings']} warnings)"
     )
 
 
