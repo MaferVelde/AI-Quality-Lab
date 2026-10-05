@@ -10,6 +10,7 @@ from ai_quality_lab.analysis.failures import analyze_failures
 from ai_quality_lab.analysis.root_causes import analyze_root_causes
 from ai_quality_lab.analysis.recommendations import recommend_experiments
 from ai_quality_lab.analysis.experiment_suites import build_experiment_suite
+from ai_quality_lab.experiments.lifecycle import evaluate_experiment
 from ai_quality_lab.comparison import compare_summaries
 from ai_quality_lab.adapters.nuevamente import adapt_ground_truth as adapt_nuevamente_ground_truth
 from ai_quality_lab.adapters.nuevamente_retrieval import adapt_retrieval_json as adapt_nuevamente_retrieval_json
@@ -18,6 +19,7 @@ from ai_quality_lab.reporting.failure_report import build_failure_report
 from ai_quality_lab.reporting.root_cause_report import build_root_cause_report
 from ai_quality_lab.reporting.recommendation_report import build_recommendation_report
 from ai_quality_lab.reporting.experiment_suite_report import build_experiment_suite_report
+from ai_quality_lab.reporting.experiment_evaluation_report import build_experiment_evaluation_report
 from ai_quality_lab.reporting.report import build_markdown_report
 from ai_quality_lab.versioning.manifest import build_manifest
 
@@ -176,6 +178,51 @@ def build_experiment_suite_command(
     typer.echo(
         f"Experiment suite complete: {output} "
         f"({summary['planned_experiments']} experiments)"
+    )
+
+
+@app.command("evaluate-experiment")
+def evaluate_experiment_command(
+    experiment_suite: Path = typer.Option(..., exists=True, readable=True),
+    experiment_id: str = typer.Option(...),
+    baseline_summary: Path = typer.Option(..., exists=True, readable=True),
+    candidate_summary: Path = typer.Option(..., exists=True, readable=True),
+    baseline_per_query: Path = typer.Option(..., exists=True, readable=True),
+    candidate_per_query: Path = typer.Option(..., exists=True, readable=True),
+    baseline_manifest: Path = typer.Option(..., exists=True, readable=True),
+    candidate_manifest: Path = typer.Option(..., exists=True, readable=True),
+    candidate_run: str = typer.Option(...),
+    output: Path = typer.Option(...),
+    k: int = typer.Option(5, min=1),
+    tolerance: float = typer.Option(1e-12, min=0.0),
+) -> None:
+    output.mkdir(parents=True, exist_ok=True)
+    result, affected_comparison, updated_suite = evaluate_experiment(
+        experiment_suite_path=experiment_suite,
+        experiment_id=experiment_id,
+        baseline_summary_path=baseline_summary,
+        candidate_summary_path=candidate_summary,
+        baseline_per_query_path=baseline_per_query,
+        candidate_per_query_path=candidate_per_query,
+        baseline_manifest_path=baseline_manifest,
+        candidate_manifest_path=candidate_manifest,
+        candidate_run=candidate_run,
+        k=k,
+        tolerance=tolerance,
+    )
+    (output / "experiment_result.json").write_text(
+        json.dumps(result, indent=2, ensure_ascii=False), encoding="utf-8"
+    )
+    affected_comparison.to_csv(
+        output / "affected_query_comparison.csv", index=False
+    )
+    updated_suite.to_csv(output / "experiment_suite_updated.csv", index=False)
+    (output / "experiment_evaluation_report.md").write_text(
+        build_experiment_evaluation_report(result), encoding="utf-8"
+    )
+    typer.echo(
+        f"Experiment evaluation complete: {output} "
+        f"({result['experiment_id']} -> {result['outcome']})"
     )
 
 
