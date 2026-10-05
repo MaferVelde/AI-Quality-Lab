@@ -9,6 +9,7 @@ from ai_quality_lab import __version__
 from ai_quality_lab.analysis.failures import analyze_failures
 from ai_quality_lab.analysis.root_causes import analyze_root_causes
 from ai_quality_lab.analysis.recommendations import recommend_experiments
+from ai_quality_lab.analysis.experiment_suites import build_experiment_suite
 from ai_quality_lab.comparison import compare_summaries
 from ai_quality_lab.adapters.nuevamente import adapt_ground_truth as adapt_nuevamente_ground_truth
 from ai_quality_lab.adapters.nuevamente_retrieval import adapt_retrieval_json as adapt_nuevamente_retrieval_json
@@ -16,6 +17,7 @@ from ai_quality_lab.evaluation.retrieval import evaluate_retrieval
 from ai_quality_lab.reporting.failure_report import build_failure_report
 from ai_quality_lab.reporting.root_cause_report import build_root_cause_report
 from ai_quality_lab.reporting.recommendation_report import build_recommendation_report
+from ai_quality_lab.reporting.experiment_suite_report import build_experiment_suite_report
 from ai_quality_lab.reporting.report import build_markdown_report
 from ai_quality_lab.versioning.manifest import build_manifest
 
@@ -146,6 +148,34 @@ def recommend_experiment_plans(
     typer.echo(
         f"Recommendation planning complete: {output} "
         f"({summary['planned_experiments']} experiment plans)"
+    )
+
+
+@app.command("build-experiment-suite")
+def build_experiment_suite_command(
+    ground_truth: Path = typer.Option(..., exists=True, readable=True),
+    retrieval: Path = typer.Option(..., exists=True, readable=True),
+    output: Path = typer.Option(...),
+    baseline_run: str = typer.Option("baseline", help="Identifier for the frozen baseline run"),
+    k: int = typer.Option(5, min=1, help="Top-K cutoff to diagnose"),
+) -> None:
+    output.mkdir(parents=True, exist_ok=True)
+    suite, summary = build_experiment_suite(
+        ground_truth_path=ground_truth,
+        retrieval_path=retrieval,
+        k=k,
+        baseline_run=baseline_run,
+    )
+    suite.to_csv(output / "experiment_suite.csv", index=False)
+    (output / "experiment_suite_summary.json").write_text(
+        json.dumps(summary, indent=2, ensure_ascii=False), encoding="utf-8"
+    )
+    (output / "experiment_suite_report.md").write_text(
+        build_experiment_suite_report(summary), encoding="utf-8"
+    )
+    typer.echo(
+        f"Experiment suite complete: {output} "
+        f"({summary['planned_experiments']} experiments)"
     )
 
 
