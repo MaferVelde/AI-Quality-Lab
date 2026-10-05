@@ -227,6 +227,9 @@ def evaluate_experiment(
         raise ValueError("candidate_run must be non-empty")
 
     suite = pd.read_csv(experiment_suite_path)
+    for column in ("candidate_run", "status"):
+        if column in suite.columns:
+            suite[column] = suite[column].fillna("").astype("object")
     experiment = _select_experiment(suite, experiment_id)
 
     baseline_summary = _load_json(baseline_summary_path)
