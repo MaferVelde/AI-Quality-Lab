@@ -59,9 +59,16 @@ def adapt_retrieval_json(
         results = case.get("results")
         if not isinstance(results, list):
             raise ValueError(f"Retrieval case {case_id} results must be a list")
-        if len(results) != top_k:
+
+        if not results:
             raise ValueError(
-                f"Retrieval case {case_id} expected {top_k} results, found {len(results)}"
+                f"Retrieval case {case_id} has success status but no results"
+            )
+
+        if len(results) > top_k:
+            raise ValueError(
+                f"Retrieval case {case_id} declares top_k={top_k} "
+                f"but contains {len(results)} results"
             )
 
         seen_ranks: set[int] = set()
@@ -87,6 +94,14 @@ def adapt_retrieval_json(
                     "score_type": score_type,
                     "source_contract_version": case.get("contract_version"),
                 }
+            )
+
+        expected_ranks = set(range(1, len(results) + 1))
+
+        if seen_ranks != expected_ranks:
+            raise ValueError(
+                f"Retrieval case {case_id} has non-contiguous ranks: "
+                f"{sorted(seen_ranks)}"
             )
 
     out = pd.DataFrame(rows).sort_values(["query_id", "rank"]).reset_index(drop=True)
